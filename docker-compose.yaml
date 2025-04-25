@@ -36,7 +36,7 @@ services:
       # LLM Keys / Settings
       # OpenAI
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_ORGANIZATION_ID: ${OPENAI_ORGANIZATION_ID:-}
+      OPENAI_ORG_ID: ${OPENAI_ORG_ID:-}
       # Anthropic
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # IBM Watson
