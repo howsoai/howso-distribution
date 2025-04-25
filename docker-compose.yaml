@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: insights-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-insights}
+    volumes:
+      - insights_postgres_data:/var/lib/postgresql/data
+    networks:
+      - insights-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-insights}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    # Image is built/specified in docker-compose.override.yaml or environment variable
+    image: dpbuild-howso-customer.jfrog.io/howso/insights-app-api:latest
+    container_name: insights-app-api
+    depends_on:
+      postgres:
+        condition: service_healthy # Wait for postgres to be ready
+    environment:
+      ENVIRONMENT: production
+      # Database connection details
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: postgres # Service name within docker network
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-insights}
+      COOKIE_SECURE: "false" # Set to "true" if using HTTPS
+      # LLM Keys / Settings
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_ORGANIZATION_ID: ${OPENAI_ORGANIZATION_ID:-}
+      # Anthropic
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # IBM Watson
+      IBM_WATSON_API_KEY: ${IBM_WATSON_API_KEY:-}
+      IBM_WATSON_PROJECT_ID: ${IBM_WATSON_PROJECT_ID:-}
+      IBM_WATSON_URL: ${IBM_WATSON_URL:-}
+      # AWS
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_REGION: ${AWS_REGION:-}
+
+    ports:
+      - "8000:8000" # Host:Container
+    volumes:
+      - insights-keys:/app/keys # Volume for storing generated JWT keys
+      - insights-local-store:/app/local_object_store # Volume for local object store
+    networks:
+      - insights-net
+    hostname: api
+    restart: unless-stopped
+
+  ui:
+    container_name: insights-app-ui
+    # Image is built/specified in docker-compose.override.yaml or environment variable
+    image: dpbuild-howso-customer.jfrog.io/howso/insights-app-ui:latest
+    depends_on:
+      api:
+        condition: service_healthy # Wait for API to be ready
+    ports:
+      - "8080:8080" # Host:Container (Nginx proxy)
+    environment:
+      API_BASE_URL: "/api"
+    networks:
+      - insights-net
+    restart: unless-stopped
+
+volumes:
+  insights_postgres_data: # Persistent storage for PostgreSQL data
+  insights-keys: {}       # Shared volume for API JWT keys
+  insights-local-store: {} # Persistent volume for local object storage
+
+networks:
+  insights-net: # Shared network for all services
